@@ -1,0 +1,76 @@
+name: Build Tweak
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          export THEOS=~/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
+
+      - name: Install Dependencies
+        run: |
+          brew install ldid xz
+          git clone --depth 1 https://github.com/theos/sdks.git /tmp/sdks
+          rsync -av --ignore-errors /tmp/sdks/ ~/theos/sdks/ || true
+
+      - name: Fix SDK Path
+        run: |
+          set +e
+          AVAILABLE_SDK=$(ls ~/theos/sdks | grep iPhoneOS | head -n 1)
+          echo "Доступен SDK: $AVAILABLE_SDK"
+          if [ "$AVAILABLE_SDK" != "iPhoneOS16.5.sdk" ]; then
+            ln -s ~/theos/sdks/$AVAILABLE_SDK ~/theos/sdks/iPhoneOS16.5.sdk
+          fi
+
+      - name: Recreate Folder Structure
+        run: |
+          set +e
+          mkdir -p sources/KIF
+          mkdir -p esp/drawing_view
+          mkdir -p esp/helpers
+          mkdir -p esp/unity_api
+          mkdir -p headers
+          mkdir -p helpers
+          mkdir -p layout
+          mkdir -p layout/Resources
+
+          cp *.m sources/ 2>/dev/null
+          cp *.mm sources/ 2>/dev/null
+          cp *.h sources/ 2>/dev/null
+
+          cp *KIF* sources/KIF/ 2>/dev/null
+          cp *UITouch* sources/KIF/ 2>/dev/null
+          cp *drawing* esp/drawing_view/ 2>/dev/null
+          cp *helper* esp/helpers/ 2>/dev/null
+          cp *unity* esp/unity_api/ 2>/dev/null
+
+          cp *.h helpers/ 2>/dev/null
+
+          echo "--- sources/ ---"
+          ls sources/ || true
+          echo "--- helpers/ ---"
+          ls helpers/ || true
+          echo "--- ВСЕ .h файлы ---"
+          find . -name "*.h" -not -path "./.theos/*" 2>/dev/null || true
+
+      - name: Fix THEOS Path in Makefile
+        run: |
+          set +e
+          sed -i '' 's|export THEOS=/var/mobile/theos|export THEOS=~/theos|' Makefile
+          echo "=== Первые строки Makefile ==="
+          head -5 Makefile
+
+      - name: Build TIPA
+        run: |
+          make package FINALPACKAGE=1 THEOS=~/theos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VolkovTap-tipa
+          path: packages/*.tipa
