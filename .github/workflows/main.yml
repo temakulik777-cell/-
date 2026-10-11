@@ -1,0 +1,41 @@
+name: Build Tweak
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          export THEOS=~/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
+
+      - name: Install Dependencies
+        run: |
+          brew install ldid xz
+          # Клонируем SDK и копируем через rsync, игнорируя битые симлинки
+          git clone --depth 1 https://github.com/theos/sdks.git /tmp/sdks
+          rsync -av --ignore-errors /tmp/sdks/ ~/theos/sdks/ || true
+
+      - name: Fix SDK Path
+        run: |
+          # Ищем любой доступный iPhoneOS SDK и создаем ярлык iPhoneOS16.5.sdk
+          AVAILABLE_SDK=$(ls ~/theos/sdks | grep iPhoneOS | head -n 1)
+          echo "Доступен SDK: $AVAILABLE_SDK"
+          if [ "$AVAILABLE_SDK" != "iPhoneOS16.5.sdk" ]; then
+            ln -s ~/theos/sdks/$AVAILABLE_SDK ~/theos/sdks/iPhoneOS16.5.sdk
+          fi
+          echo "Содержимое папки SDK:"
+          ls -la ~/theos/sdks/ | grep iPhone
+
+      - name: Build TIPA
+        run: |
+          make package FINALPACKAGE=1 THEOS=~/theos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VolkovTap-tipa
+          path: packages/*.tipa
