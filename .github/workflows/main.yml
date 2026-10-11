@@ -1,0 +1,41 @@
+- name: Recreate Folder Structure
+        run: |
+          # Создаём ВСЕ возможные папки, которые могут искаться в коде
+          mkdir -p sources/KIF
+          mkdir -p esp/drawing_view
+          mkdir -p esp/helpers
+          mkdir -p esp/unity_api
+          mkdir -p headers
+          mkdir -p helpers          # ← для ../helpers/
+          mkdir -p unity_api        # ← для ../unity_api/
+          mkdir -p drawing_view     # ← для ../drawing_view/
+          mkdir -p layout
+          mkdir -p layout/Resources
+
+          # Копируем файлы из корня
+          cp *.m sources/ 2>/dev/null || true
+          cp *.mm sources/ 2>/dev/null || true
+          cp *.h sources/ 2>/dev/null || true
+
+          # KIF
+          cp *KIF* sources/KIF/ 2>/dev/null || true
+          cp *UITouch* sources/KIF/ 2>/dev/null || true
+
+          # ESP
+          cp *drawing* esp/drawing_view/ 2>/dev/null || true
+          cp *helper* esp/helpers/ 2>/dev/null || true
+          cp *unity* esp/unity_api/ 2>/dev/null || true
+
+          # Дублируем ключевые файлы в helpers/ (на уровень выше sources/)
+          cp Vector3.h helpers/ 2>/dev/null || true
+          cp *.h helpers/ 2>/dev/null || true
+          
+          # На всякий случай дублируем всё в корень
+          cp *.h . 2>/dev/null || true
+
+          echo "=== sources/ ==="
+          ls -la sources/ | head -30
+          echo "=== helpers/ ==="
+          ls -la helpers/ | head -30
+          echo "=== Поиск Vector3.h ==="
+          find . -name "Vector3.h"
