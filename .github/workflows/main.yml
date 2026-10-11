@@ -1,0 +1,74 @@
+name: Build Tweak
+on: [push, workflow_dispatch]
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Theos
+        run: |
+          export THEOS=~/theos
+          git clone --recursive https://github.com/theos/theos.git $THEOS
+          echo "THEOS=$THEOS" >> $GITHUB_ENV
+          echo "$THEOS/bin" >> $GITHUB_PATH
+
+      - name: Install Dependencies
+        run: |
+          brew install ldid xz
+          git clone --depth 1 https://github.com/theos/sdks.git /tmp/sdks
+          rsync -av --ignore-errors /tmp/sdks/ ~/theos/sdks/ || true
+
+      - name: Fix SDK Path
+        run: |
+          AVAILABLE_SDK=$(ls ~/theos/sdks | grep iPhoneOS | head -n 1)
+          if [ "$AVAILABLE_SDK" != "iPhoneOS16.5.sdk" ]; then
+            ln -s ~/theos/sdks/$AVAILABLE_SDK ~/theos/sdks/iPhoneOS16.5.sdk
+          fi
+
+      - name: Recreate Folder Structure
+        run: |
+          # Создаём все папки, которые ищет Makefile
+          mkdir -p sources/KIF
+          mkdir -p esp/drawing_view
+          mkdir -p esp/helpers
+          mkdir -p esp/unity_api
+          mkdir -p headers
+          mkdir -p layout
+          mkdir -p layout/Resources
+
+          # Копируем файлы из корня в нужные папки
+          cp *.m sources/ 2>/dev/null || true
+          cp *.mm sources/ 2>/dev/null || true
+          cp *.h sources/ 2>/dev/null || true
+
+          # KIF
+          cp *KIF* sources/KIF/ 2>/dev/null || true
+          cp *UITouch* sources/KIF/ 2>/dev/null || true
+
+          # ESP
+          cp *drawing* esp/drawing_view/ 2>/dev/null || true
+          cp *helper* esp/helpers/ 2>/dev/null || true
+          cp *unity* esp/unity_api/ 2>/dev/null || true
+
+          # Headers
+          cp *.h headers/ 2>/dev/null || true
+
+          # Показываем результат
+          echo "=== Что теперь в sources/ ==="
+          ls -la sources/
+          echo "=== Что теперь в esp/ ==="
+          ls -R esp/
+
+      - name: Fix THEOS Path
+        run: |
+          sed -i '' 's|export THEOS=/var/mobile/theos|export THEOS=~/theos|' Makefile || true
+
+      - name: Build TIPA
+        run: |
+          make package FINALPACKAGE=1 THEOS=~/theos
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: VolkovTap-tipa
+          path: packages/*.tipa
